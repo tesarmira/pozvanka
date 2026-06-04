@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pozvánka – Miroslav Tesař 40</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 20px;
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  .terminal {
+    width: 680px;
+    min-height: 940px;
+    background: #0a0a0a;
+    border: 2px solid #00ff41;
+    position: relative;
+    padding: 30px 40px;
+    box-shadow: 0 0 30px rgba(0,255,65,0.15), inset 0 0 60px rgba(0,255,65,0.03);
+  }
+
+  /* CRT scan line efekt */
+  .terminal::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .terminal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: rgba(0,255,65,0.15);
+    z-index: 11;
+  }
+
+  .inner-border {
+    position: absolute;
+    inset: 6px;
+    border: 0.5px solid rgba(0,255,65,0.4);
+    pointer-events: none;
+  }
+
+  .line {
+    display: block;
+    white-space: pre;
+    line-height: 1.6;
+    opacity: 0;
+    overflow: hidden;
+    width: 0;
+    transition: width 0s;
+  }
+
+  .line.visible {
+    opacity: 1;
+    width: 100%;
+    animation: none;
+  }
+
+  .green   { color: #00ff41; }
+  .yellow  { color: #ffff00; }
+  .white   { color: #ffffff; }
+  .dim     { color: #00ff41; opacity: 0.45 !important; }
+  .dimmed  { color: #00ff41; opacity: 0.7 !important; }
+  .dimmed2 { color: #00ff41; opacity: 0.4 !important; }
+
+  .spacer { height: 6px; display: block; opacity: 1 !important; width: 100% !important; }
+
+  .separator {
+    display: block;
+    border: none;
+    border-top: 0.5px solid rgba(0,255,65,0.3);
+    margin: 8px 0;
+    opacity: 0;
+    width: 100%;
+  }
+  .separator.visible { opacity: 1; }
+
+  .separator.bright { border-top-color: rgba(0,255,65,0.5); }
+
+  /* Velká čísla 40 */
+  .big40 {
+    display: block;
+    text-align: center;
+    font-size: 96px;
+    font-weight: 700;
+    color: transparent;
+    -webkit-text-stroke: 1.5px #00ff41;
+    text-shadow: 0 0 40px rgba(0,255,65,0.2);
+    line-height: 1;
+    opacity: 0;
+    margin: 10px 0 4px;
+  }
+  .big40.visible { opacity: 1; }
+
+  .centered { text-align: center; display: block !important; }
+
+  /* Žlutý blok – souběžná oslava */
+  .bonus-block {
+    border: 2px solid #ffff00;
+    background: #1a1600;
+    padding: 12px 20px 14px;
+    margin: 8px -8px;
+    position: relative;
+    opacity: 0;
+  }
+  .bonus-block::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 5px;
+    background: rgba(255,255,0,0.6);
+  }
+  .bonus-block::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 5px;
+    background: rgba(255,255,0,0.6);
+  }
+  .bonus-block.visible { opacity: 1; }
+  .bonus-block .line { opacity: 1 !important; width: 100% !important; }
+
+  /* Blikající kurzor */
+  .cursor {
+    display: inline-block;
+    width: 9px;
+    height: 14px;
+    background: #00ff41;
+    vertical-align: middle;
+    animation: blink 1s step-end infinite;
+    margin-left: 2px;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Tlačítko restart */
+  .restart-btn {
+    display: none;
+    margin-top: 20px;
+    background: transparent;
+    border: 1px solid #00ff41;
+    color: #00ff41;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 6px 16px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  .restart-btn:hover { background: rgba(0,255,65,0.1); }
+  .restart-btn.visible { display: inline-block; }
+</style>
+</head>
+<body>
+<div class="terminal">
+  <div class="inner-border"></div>
+  <div id="output"></div>
+</div>
+
+<script>
+const GREEN  = 'green';
+const YELLOW = 'yellow';
+const WHITE  = 'white';
+const DIM    = 'dim';
+const DIMMED = 'dimmed';
+const DIM2   = 'dimmed2';
+
+// Každý prvek: [typ, text/obsah, zpoždění_ms, rychlost_px_per_ms]
+// typ: 'type' = psaní znak po znaku, 'instant' = zobrazit naráz, 'sep' = oddělovač, 'big40', 'bonus', 'spacer'
+const LINES = [
+  { t:'type',    cls:DIMMED,  text:'C:\\NAROZENINY\\INVITE.EXE v1.986',                 delay:200,  speed:28 },
+  { t:'type',    cls:YELLOW,  text:'Inicializuji pozvánku... OK',                        delay:100,  speed:32 },
+  { t:'type',    cls:YELLOW,  text:'Načítám rok 1986... OK',                             delay:80,   speed:32 },
+  { t:'type',    cls:YELLOW,  text:'Spouštím oslavu... OK',                              delay:80,   speed:32 },
+  { t:'instant', cls:DIM2,    text:'████████████████████████████████████',               delay:120              },
+  { t:'spacer',                                                                           delay:60               },
+  { t:'big40',                                                                            delay:300              },
+  { t:'instant', cls:DIMMED+' centered', text:'[ 1986 — 2026 ]',                        delay:150              },
+  { t:'spacer',                                                                           delay:40               },
+  { t:'sep',     bright:true,                                                             delay:80               },
+  { t:'spacer',                                                                           delay:40               },
+  { t:'type',    cls:YELLOW,  text:'SYSTÉMOVÉ HLÁŠENÍ č. 40:',                           delay:200,  speed:30 },
+  { t:'spacer',                                                                           delay:40               },
+  { t:'instant', cls:WHITE+' centered', text:'MIROSLAV TESAŘ',                           delay:200              },
+  { t:'instant', cls:DIMMED+' centered', text:'a. k. a. „Inženýr" · od 16. 8. 1986',   delay:100              },
+  { t:'instant', cls:GREEN+' centered', text:'dosáhne kritického věku: 40 let.',         delay:100              },
+  { t:'spacer',                                                                           delay:40               },
+  { t:'sep',                                                                              delay:80               },
+  { t:'spacer',                                                                           delay:40               },
+  { t:'type',    cls:YELLOW,  text:'> DIAGNOSTIKA PROSTŘEDÍ PŘI STARTU (1986):',        delay:200,  speed:25 },
+  { t:'type',    cls:GREEN,   text:'• CZ: Normalizace v plném proudu, fronty na banány', delay:60,   speed:22 },
+  { t:'type',    cls:GREEN,   text:'• CZ: Tuzex, Věra Špinarová & Tesla 611 na stolech', delay:60,  speed:22 },
+  { t:'type',    cls:GREEN,   text:'• WORLD: Havárie Černobylu [přijat patch 26.4.1986]',delay:60,  speed:22 },
+  { t:'type',    cls:GREEN,   text:'• WORLD: Commodore 64 vládne světu, Top Gun v kinech',delay:60, speed:22 },
+  { t:'type',    cls:GREEN,   text:'• HW: Intel 80386 právě vyšel · RAM: 640 KB (dost!)',delay:60,  speed:22 },
+  { t:'spacer',                                                                            delay:40              },
+  { t:'sep',                                                                               delay:80              },
+  { t:'spacer',                                                                            delay:40              },
+  { t:'type',    cls:YELLOW,  text:'> SPECIFIKACE JEDNOTKY „INŽENÝR" (aktuální build):',  delay:200, speed:25 },
+  { t:'type',    cls:GREEN,   text:'ROLE ...........  CTO · developer · tatínek · bručoun',delay:60, speed:22 },
+  { t:'type',    cls:GREEN,   text:'STACK ..........  .NET/C# · PostgreSQL · zdravý rozum',delay:60, speed:22 },
+  { t:'type',    cls:GREEN,   text:'I/O ............  pivo · kafe · běh · posilovna',      delay:60, speed:22 },
+  { t:'type',    cls:GREEN,   text:'SOCIÁLNÍ VRSTVA   nízká (by design, nikoli chyba)',    delay:60, speed:22 },
+  { t:'type',    cls:GREEN,   text:'MANUÁLNÍ ZRUČNOST vysoká (systém ji hlásí, okolí ne)', delay:60, speed:22 },
+  { t:'type',    cls:GREEN,   text:'HUMOR ..........  přítomen',    delay:60, speed:22 },
+  { t:'type',    cls:GREEN,   text:'STATUS .........  STABILNÍ · provoz: 40 let bez havárie',delay:60,speed:22},
+  { t:'spacer',                                                                              delay:40             },
+  { t:'sep',                                                                                 delay:80             },
+  { t:'spacer',                                                                              delay:40             },
+  { t:'bonus',                                                                               delay:300            },
+  { t:'spacer',                                                                              delay:40             },
+  { t:'sep',                                                                                 delay:80             },
+  { t:'spacer',                                                                              delay:40             },
+  { t:'type',    cls:YELLOW,  text:'> PARAMETRY SETKÁNÍ:',                                  delay:200, speed:30 },
+  { t:'spacer',                                                                              delay:40             },
+  { t:'instant', cls:WHITE+' centered', text:'5. září 2026',                               delay:150            },
+  { t:'instant', cls:GREEN+' centered', text:'Salonek Kulturního domu · Práče',            delay:100            },
+  { t:'spacer',                                                                             delay:40             },
+  { t:'sep',                                                                                delay:80             },
+  { t:'spacer',                                                                             delay:40             },
+  { t:'instant', cls:DIMMED,  text:'Potvrzení přítomnosti: rodina · přátelé · obligátní pivo', delay:200       },
+  { t:'spacer',                                                                             delay:120            },
+  { t:'prompt',                                                                             delay:200            },
+];
+
+const out = document.getElementById('output');
+let idx = 0;
+
+function makeEl(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = 'line ' + cls;
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function typeLine(el, text, speed, done) {
+  el.textContent = '';
+  el.style.width = '100%';
+  el.style.opacity = '1';
+  let i = 0;
+  function next() {
+    if (i < text.length) {
+      el.textContent += text[i++];
+      setTimeout(next, speed ? Math.random() * speed * 0.5 + speed * 0.5 : 30);
+    } else {
+      done && done();
+    }
+  }
+  next();
+}
+
+function step() {
+  if (idx >= LINES.length) return;
+  const item = LINES[idx++];
+
+  setTimeout(() => {
+    if (item.t === 'spacer') {
+      const sp = document.createElement('span');
+      sp.className = 'spacer';
+      out.appendChild(sp);
+      step();
+
+    } else if (item.t === 'sep') {
+      const hr = document.createElement('hr');
+      hr.className = 'separator' + (item.bright ? ' bright' : '');
+      out.appendChild(hr);
+      requestAnimationFrame(() => hr.classList.add('visible'));
+      step();
+
+    } else if (item.t === 'big40') {
+      const el = document.createElement('span');
+      el.className = 'big40';
+      el.textContent = '40';
+      out.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('visible'));
+      step();
+
+    } else if (item.t === 'bonus') {
+      const block = document.createElement('div');
+      block.className = 'bonus-block';
+      block.innerHTML = `
+        <span class="line yellow centered" style="font-weight:700">★  SOUBĚŽNÁ OSLAVA  ★</span>
+        <span class="line white centered">Maminka slaví 60 – nainstalována 1965, stále v provozu.</span>
+        <span class="line white centered">Dohromady 100 let bezchybného chodu. Oceníme to.</span>
+      `;
+      out.appendChild(block);
+      requestAnimationFrame(() => block.classList.add('visible'));
+      step();
+
+    } else if (item.t === 'prompt') {
+      const el = document.createElement('span');
+      el.className = 'line dim';
+      el.innerHTML = 'C:\\&gt; <span class="cursor"></span>';
+      el.style.width = '100%';
+      el.style.opacity = '0.45';
+      out.appendChild(el);
+      // restart tlačítko
+      const btn = document.createElement('button');
+      btn.className = 'restart-btn';
+      btn.textContent = '[ SPUSTIT ZNOVU ]';
+      out.appendChild(btn);
+      requestAnimationFrame(() => btn.classList.add('visible'));
+      btn.addEventListener('click', () => {
+        out.innerHTML = '';
+        idx = 0;
+        step();
+      });
+
+    } else if (item.t === 'type') {
+      const el = makeEl('span', item.cls);
+      out.appendChild(el);
+      typeLine(el, item.text, item.speed, step);
+      return; // step() called in callback
+
+    } else if (item.t === 'instant') {
+      const el = makeEl('span', item.cls, item.text);
+      out.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('visible'));
+      step();
+    }
+  }, item.delay || 0);
+}
+
+step();
+</script>
+</body>
+</html>
